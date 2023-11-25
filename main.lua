@@ -21,17 +21,11 @@ end
 
 function decode(message)
 	local format = "I4I4"
-	if message:len() < string.packsize(format) then
-		print("no header") -- DEBUG
-		return nil
-	end
+	assert(message:len() >= string.packsize(format), "no header")
 	local object_id, op_and_len = string.unpack(format, message)
 	local len = op_and_len >> 16
 	local opcode = op_and_len & (1 << 16 - 1)
-	if message:len() < len then
-		print("too small") -- DEBUG
-		return nil
-	end
+	assert(message:len() >= len, "too short")
 	return object_id, opcode, message:sub(9, len)
 end
 
