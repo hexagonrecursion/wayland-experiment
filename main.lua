@@ -11,18 +11,30 @@ function hex(str)
 	return result
 end
 
-wl_display = {}
-wl_display.__index = wl_display
-
-function wl_display.new(o)
-	o = o or {}
-	setmetatable(o, wl_display)
-	return o
+function mk_wl_clas(name, events)
+	local cls = {events = {}}
+	for k, v in ipairs(events) do
+		cls.events[k - 1] = v
+	end
+	cls.__index = cls
+	function cls:__tostring ()
+		return string.format("%s<%d>", name, self.id)
+	end
+	function cls.new(o)
+		o = o or {}
+		setmetatable(o, cls)
+		return o
+	end
+	return cls
 end
+
+-- TODO: properly decode wl_display.error
+wl_display = mk_wl_clas("wl_display", {{"error", "I4I4"}, {"delete_id", "I4"}})
+wl_callback = mk_wl_clas("wl_callback", {{"done", "I4"}})
 
 function wl_display:sync()
 	-- TODO: create a wl_callback class?
-	local callback = {}
+	local callback = wl_callback.new()
 	return {self.id, 0, "new_id", callback}, callback
 end
     
@@ -50,9 +62,15 @@ function Wayland:from_server(bytes)
 		if self.bytes_from_server:len() < string.packsize(format) then break end
 		local object_id, op_and_len = string.unpack(format, self.bytes_from_server)
 		local len = op_and_len >> 16
-		local opcode = op_and_len & (1 << 16 - 1)
+		local opcode = op_and_len & ((1 << 16) - 1)
 		if self.bytes_from_server:len() < len then break end
-		table.insert(events, {object_id, opcode, self.bytes_from_server:sub(9, len)})
+		local obj = self.object_by_id[object_id]
+		local opname = obj.events[opcode][1]
+		local arg_format = obj.events[opcode][2]
+		-- TODO: string.unpack may error
+		local one_event = {obj, opname, string.unpack(arg_format, self.bytes_from_server:sub(9, len))}
+		table.remove(one_event) -- the last return of string.unpack is length
+		table.insert(events, one_event)
 		-- TODO: optimize
 		self.bytes_from_server = self.bytes_from_server:sub(len + 1)
 	end
@@ -93,11 +111,9 @@ end
 function create_socket()
 	-- TODO: is this the best way of concatenating paths in lua?
 	local socket_path = os.getenv("XDG_RUNTIME_DIR") .. "/" .. os.getenv("WAYLAND_DISPLAY")
-	print(socket_path)
 	-- TODO: how to close the socket?
 	local socket = assert(M.socket(M.AF_UNIX, M.SOCK_STREAM, 0))
-	print("socket() -> " .. socket)
-	print("connect() -> " .. assert(M.connect(socket, {family = M.AF_UNIX, path = socket_path})) )
+	assert(M.connect(socket, {family = M.AF_UNIX, path = socket_path}))
 	return socket
 end
 
@@ -105,23 +121,19 @@ function ping_the_server()
 	local socket = create_socket()
 	local wayland = Wayland.new()
 	local display = wayland:get_wl_display()
+
 	local request = display:sync()
 	local bytes = wayland:to_server({request})
-        print("send() -> " .. assert(M.send(socket, bytes)))
+	print("C -> S", hex(bytes))
+        assert(M.send(socket, bytes))
 	
 	while true do
 		-- TODO: decide buffer size
 		-- TODO: is wayland a steram protocol or datagram protocol?
 		bytes = assert(M.recv(socket, 2 << 16))
+		print("S -> C", hex(bytes))
 		for _, event in ipairs(wayland:from_server(bytes)) do
-			for _, v in ipairs(event) do
-				if type(v) == "string" then
-					print(hex(v))
-				else
-					print(v)
-				end
-			end
-			print("-------------")
+			print("event", table.unpack(event))
 		end
 	end
 end
