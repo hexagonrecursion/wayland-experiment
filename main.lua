@@ -142,6 +142,9 @@ function ping_the_server()
 		-- TODO: decide buffer size
 		-- TODO: is wayland a steram protocol or datagram protocol?
 		bytes = assert(M.recv(socket, 2 << 16))
+		if not bytes or #bytes == 0 then
+			break -- end of file
+		end
 		print("S -> C", hex(bytes))
 		for _, event in ipairs(wayland:from_server(bytes)) do
 			print("event", table.unpack(event))
