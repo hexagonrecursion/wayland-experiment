@@ -33,13 +33,11 @@ wl_callback = mk_wl_clas("wl_callback", {{"done", "I4"}})
 wl_registry = mk_wl_clas("wl_registry", {{"global", "!4 I4 s4 XI4 I4"}})
 
 function wl_display:sync()
-	-- TODO: create a wl_callback class?
 	local callback = wl_callback.new()
 	return {self.id, 0, "new_id", callback}, callback
 end
 
 function wl_display:get_registry()
-	-- TODO: create a wl_callback class?
 	local r = wl_registry.new()
 	return {self.id, 1, "new_id", r}, r
 end
