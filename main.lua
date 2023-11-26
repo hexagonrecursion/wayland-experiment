@@ -31,11 +31,18 @@ end
 -- TODO: properly decode wl_display.error
 wl_display = mk_wl_clas("wl_display", {{"error", "I4I4"}, {"delete_id", "I4"}})
 wl_callback = mk_wl_clas("wl_callback", {{"done", "I4"}})
+wl_registry = mk_wl_clas("wl_registry", {{"global", "!4 I4 s4 XI4 I4"}})
 
 function wl_display:sync()
 	-- TODO: create a wl_callback class?
 	local callback = wl_callback.new()
 	return {self.id, 0, "new_id", callback}, callback
+end
+
+function wl_display:get_registry()
+	-- TODO: create a wl_callback class?
+	local r = wl_registry.new()
+	return {self.id, 1, "new_id", r}, r
 end
     
 Wayland = {}
@@ -64,9 +71,13 @@ function Wayland:from_server(bytes)
 		local len = op_and_len >> 16
 		local opcode = op_and_len & ((1 << 16) - 1)
 		if self.bytes_from_server:len() < len then break end
-		local obj = self.object_by_id[object_id]
-		local opname = obj.events[opcode][1]
-		local arg_format = obj.events[opcode][2]
+		local obj = assert(self.object_by_id[object_id], "server sent event from unknown object "..object_id)
+		local opname = "unknown event "..opcode
+		local arg_format = ""
+		if obj.events[opcode] then
+			opname = assert(obj.events[opcode][1])
+			arg_format = assert(obj.events[opcode][2])
+		end
 		-- TODO: string.unpack may error
 		local one_event = {obj, opname, string.unpack(arg_format, self.bytes_from_server:sub(9, len))}
 		table.remove(one_event) -- the last return of string.unpack is length
@@ -122,10 +133,11 @@ function ping_the_server()
 	local wayland = Wayland.new()
 	local display = wayland:get_wl_display()
 
-	local request = display:sync()
+	local request, registry = display:get_registry()
+--	local request = display:sync()
 	local bytes = wayland:to_server({request})
 	print("C -> S", hex(bytes))
-        assert(M.send(socket, bytes))
+	assert(M.send(socket, bytes))
 	
 	while true do
 		-- TODO: decide buffer size
