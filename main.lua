@@ -1,5 +1,6 @@
-
 local M = require 'posix.sys.socket'
+function DEBUG(...) end
+function DEBUG(...) print(...) end
 
 -- Thanks https://stackoverflow.com/a/65477617/
 function hex(str)
@@ -24,6 +25,7 @@ function mk_wl_clas(name, events)
 	return cls
 end
 
+-- TODO: add missing events
 wl_display = mk_wl_clas("wl_display", {{"error", "!4 I4 I4 s4 XI4"}, {"delete_id", "I4"}})
 wl_callback = mk_wl_clas("wl_callback", {{"done", "I4"}})
 wl_registry = mk_wl_clas("wl_registry", {{"global", "!4 I4 s4 XI4 I4"}})
@@ -133,7 +135,7 @@ function ping_the_server()
 
 	local request, registry = display:get_registry()
 	local bytes = wayland:to_server({request})
-	print("C -> S", hex(bytes))
+	DEBUG("C -> S", hex(bytes))
 	assert(M.send(socket, bytes))
 	
 	while true do
@@ -143,9 +145,9 @@ function ping_the_server()
 		if not bytes or #bytes == 0 then
 			break -- end of file
 		end
-		print("S -> C", hex(bytes))
+		DEBUG("S -> C", hex(bytes))
 		for _, event in ipairs(wayland:from_server(bytes)) do
-			print("event", table.unpack(event))
+			DEBUG("event", table.unpack(event))
 		end
 	end
 end
