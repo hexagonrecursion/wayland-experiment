@@ -28,8 +28,7 @@ function mk_wl_clas(name, events)
 	return cls
 end
 
--- TODO: properly decode wl_display.error
-wl_display = mk_wl_clas("wl_display", {{"error", "I4I4"}, {"delete_id", "I4"}})
+wl_display = mk_wl_clas("wl_display", {{"error", "!4 I4 I4 s4 XI4"}, {"delete_id", "I4"}})
 wl_callback = mk_wl_clas("wl_callback", {{"done", "I4"}})
 wl_registry = mk_wl_clas("wl_registry", {{"global", "!4 I4 s4 XI4 I4"}})
 
