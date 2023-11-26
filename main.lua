@@ -134,7 +134,6 @@ function ping_the_server()
 	local display = wayland:get_wl_display()
 
 	local request, registry = display:get_registry()
---	local request = display:sync()
 	local bytes = wayland:to_server({request})
 	print("C -> S", hex(bytes))
 	assert(M.send(socket, bytes))
