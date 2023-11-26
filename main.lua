@@ -90,16 +90,6 @@ function Wayland:get_wl_display()
 	return self.object_by_id[1]
 end
 
-function decode(message)
-	local format = "I4I4"
-	assert(message:len() >= string.packsize(format), "no header")
-	local object_id, op_and_len = string.unpack(format, message)
-	local len = op_and_len >> 16
-	local opcode = op_and_len & (1 << 16 - 1)
-	assert(message:len() >= len, "too short")
-	return object_id, opcode, message:sub(9, len)
-end
-
 function create_socket()
 	-- TODO: is this the best way of concatenating paths in lua?
 	local socket_path = os.getenv("XDG_RUNTIME_DIR") .. "/" .. os.getenv("WAYLAND_DISPLAY")
