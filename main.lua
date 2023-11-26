@@ -1,14 +1,14 @@
 local M = require 'posix.sys.socket'
-function DEBUG(...) end
-function DEBUG(...) print(...) end
+local function DEBUG(...) end
+local function DEBUG(...) print(...) end
 
 -- Thanks https://stackoverflow.com/a/65477617/
-function hex(str)
+local function hex(str)
 	local result = str:gsub(".", function(char) return string.format("%02x", char:byte()) end):gsub("........", "%1 ")
 	return result
 end
 
-function mk_wl_clas(name, events)
+local function mk_wl_clas(name, events)
 	local cls = {events = {}}
 	for k, v in ipairs(events) do
 		cls.events[k - 1] = v
@@ -26,9 +26,9 @@ function mk_wl_clas(name, events)
 end
 
 -- TODO: add missing events
-wl_display = mk_wl_clas("wl_display", {{"error", "!4 I4 I4 s4 XI4"}, {"delete_id", "I4"}})
-wl_callback = mk_wl_clas("wl_callback", {{"done", "I4"}})
-wl_registry = mk_wl_clas("wl_registry", {{"global", "!4 I4 s4 XI4 I4"}})
+local wl_display = mk_wl_clas("wl_display", {{"error", "!4 I4 I4 s4 XI4"}, {"delete_id", "I4"}})
+local wl_callback = mk_wl_clas("wl_callback", {{"done", "I4"}})
+local wl_registry = mk_wl_clas("wl_registry", {{"global", "!4 I4 s4 XI4 I4"}})
 
 function wl_display:sync()
 	local callback = wl_callback.new()
@@ -40,7 +40,7 @@ function wl_display:get_registry()
 	return {self.id, 1, "new_id", r}, r
 end
     
-Wayland = {}
+local Wayland = {}
 Wayland.__index = Wayland
 
 function Wayland.new()
@@ -114,7 +114,7 @@ function Wayland:get_wl_display()
 	return self.object_by_id[1]
 end
 
-function create_socket()
+local function create_socket()
 	-- TODO: support WAYLAND_SOCKET 
 	-- TODO: support absolute paths in WAYLAND_SOCKET
 	-- TODO: what if XDG_RUNTIME_DIR is not set?
@@ -128,7 +128,7 @@ function create_socket()
 	return socket
 end
 
-function ping_the_server()
+local function ping_the_server()
 	local socket = create_socket()
 	local wayland = Wayland.new()
 	local display = wayland:get_wl_display()
