@@ -1,3 +1,10 @@
+local _ENV = setmetatable(
+	{},
+	{	__index=function(_, k) return assert(_ENV[k], "undefined variable") end,
+		__newindex=function() assert(false, "_ENV is read-only") end
+	}
+)
+
 local M = require 'posix.sys.socket'
 local function DEBUG(...) end
 local function DEBUG(...) print(...) end
@@ -44,7 +51,7 @@ local Wayland = {}
 Wayland.__index = Wayland
 
 function Wayland.new()
-	o = {}
+	local o = {}
 	o.bytes_from_server = ""
 	o.object_by_id = {
 		[1] = wl_display.new({id = 1})
@@ -59,7 +66,7 @@ end
 function Wayland:from_server(bytes)
 	self.bytes_from_server = self.bytes_from_server .. bytes
 	local format = "I4I4"
-	events = {}
+	local events = {}
 	while true do
 		if self.bytes_from_server:len() < string.packsize(format) then break end
 		local object_id, op_and_len = string.unpack(format, self.bytes_from_server)
