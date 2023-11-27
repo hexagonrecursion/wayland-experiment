@@ -185,7 +185,7 @@ local function create_caps_lock_watcher()
 	local caps_lock = {"maybe or maybe not"}
 	local from_server = ""
 	-- TODO: the docs contain scary warnings about doing id allocation wrong. check out what the reference implementation does
-	local last_used_id = 2
+	local next_free_id = 3
 	
 	local function on_error(...)
 		print(...)
@@ -198,8 +198,9 @@ local function create_caps_lock_watcher()
 		-- TODO: check version?
 		if interface ~= "wl_seat\0" then return "" end
 		if DEBUG then print("on_global:", name, interface, version) end
-		last_used_id = last_used_id + 1
-		return encode(wl_registry_id, wl_registry_bind, name, interface, version, last_used_id)
+		local seat_id = next_free_id
+		next_free_id = next_free_id + 1
+		return encode(wl_registry_id, wl_registry_bind, name, interface, version, seat_id)
 	end
 
 	local function parse(bytes)
