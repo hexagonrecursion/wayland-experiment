@@ -179,6 +179,7 @@ local function create_caps_lock_watcher()
 	local wl_registry_id = 2
 	local wl_registry_global = "!4 I4 I4 I4 s4XI4 I4"
 	local wl_registry_bind = {0, "I4 s4XI4 I4 I4"}
+	local wl_seat_capabilities = "I4 I4 I4"
 
 	-- variables
 	local handlers = {}
@@ -192,6 +193,14 @@ local function create_caps_lock_watcher()
 		return ""
 	end
 
+	local function on_capabilities(object_id, _, capabilities)
+		local cap_keyboard = 2
+		if DEBUG then print("on_capabilities:", object_id, capabilities) end
+		if capabilities & cap_keyboard == 0 then return "" end
+		if DEBUG then print("has keyboard") end
+		return ""
+	end
+
 	local function on_global(_, _, name, interface, version)
 		assert(type(name) == "number")
 		-- if DEBUG then print(name, interface, version) end
@@ -200,6 +209,7 @@ local function create_caps_lock_watcher()
 		if DEBUG then print("on_global:", name, interface, version) end
 		local seat_id = next_free_id
 		next_free_id = next_free_id + 1
+		handlers[seat_id] = {[0] = {wl_seat_capabilities, on_capabilities}}
 		return encode(wl_registry_id, wl_registry_bind, name, interface, version, seat_id)
 	end
 
