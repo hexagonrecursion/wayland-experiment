@@ -171,31 +171,31 @@ end
 local function create_caps_lock_watcher()
 	local handlers = {}
 	local caps_lock = {"maybe or maybe not"}
-	local buffer_from_server = ""
+	local from_server = ""
 
 	local function on_global(name, interface, version)
 		assert(type(name) == "number")
 		return ""
 	end
 
-	local function parse(from_server)
-		buffer_from_server = buffer_from_server .. from_server
-		local buffer_to_server = ""
+	local function parse(bytes)
+		from_server = from_server .. bytes
+		local to_server = ""
 		while true do
-			if #buffer_from_server < ("I4I4"):packsize() then break end
-			local object_id, op_and_len = ("I4I4"):unpack(buffer_from_server)
+			if #from_server < ("I4I4"):packsize() then break end
+			local object_id, op_and_len = ("I4I4"):unpack(from_server)
 			local len = op_and_len >> 16
 			local opcode = op_and_len & ((1 << 16) - 1)
-			if #buffer_from_server < len then break end
+			if #from_server < len then break end
 			local format, fn = table.unpack((handlers[object_id] or {})[opcode] or {})
 			if format then
 				-- TODO: string.unpack may throw or parse too many or too few bytes
-				buffer_to_server = buffer_to_server .. fn(format:unpack(buffer_from_server))
+				to_server = to_server .. fn(format:unpack(from_server))
 			end
 			-- TODO: optimize
-			buffer_from_server = buffer_from_server:sub(len + 1)
+			from_server = from_server:sub(len + 1)
 		end
-		return buffer_to_server, caps_lock
+		return to_server, caps_lock
 	end
 
 	local wl_registry_id = 2
