@@ -169,13 +169,33 @@ local function encode(object_id, op, ...)
 end
 
 local function create_caps_lock_watcher()
+	-- constants
+	local wl_display_id = 1
+	local wl_display_get_registry = {1, "I4 I4 I4"}
+	local wl_display_error = "!4 I4 I4 I4 I4 s4XI4"
+	local wl_registry_id = 2
+	local wl_registry_global = "!4 I4 I4 I4 s4XI4 I4"
+	local wl_registry_bind = {0, "I4 I4 I4 I4"}
+
+	-- variables
 	local handlers = {}
 	local caps_lock = {"maybe or maybe not"}
 	local from_server = ""
-
-	local function on_global(name, interface, version)
-		assert(type(name) == "number")
+	-- TODO: the docs contain scary warnings about doing id allocation wrong. check out what the reference implementation does
+	local last_used_id = 2
+	
+	local function on_error(...)
+		print(...)
 		return ""
+	end
+
+	local function on_global(_, _, name, interface, version)
+		assert(type(name) == "number")
+		if DEBUG then print(name, interface, version) end
+		-- TODO: check version?
+		if interface ~= "wl_seat\0" then return "" end
+		last_used_id = last_used_id + 1
+		return encode(wl_registry_id, wl_registry_bind, name, last_used_id)
 	end
 
 	local function parse(bytes)
@@ -190,6 +210,7 @@ local function create_caps_lock_watcher()
 			local format, fn = table.unpack((handlers[object_id] or {})[opcode] or {})
 			if format then
 				-- TODO: string.unpack may throw or parse too many or too few bytes
+				-- TODO: optimize
 				to_server = to_server .. fn(format:unpack(from_server))
 			end
 			-- TODO: optimize
@@ -198,11 +219,8 @@ local function create_caps_lock_watcher()
 		return to_server, caps_lock
 	end
 
-	local wl_registry_id = 2
-	local wl_registry_global = "!4 I4 I4 I4 s4XI4 I4"
+	handlers[wl_display_id] = {[0] = {wl_display_error, on_error}}
 	handlers[wl_registry_id] = {[0] = {wl_registry_global, on_global}}
-	local wl_display_id = 1
-	local wl_display_get_registry = {1, "I4 I4 I4"}
 	local to_server = encode(wl_display_id, wl_display_get_registry, wl_registry_id)
 	return to_server, parse
 end
