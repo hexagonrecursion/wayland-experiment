@@ -165,6 +165,7 @@ end
 local function encode(object_id, op, ...)
 	local opcode, format  = table.unpack(op)
 	local op_and_len = format:packsize() << 16 | opcode
+	if DEBUG then print("encode:", opcode, format:packsize(), op_and_len, ...) end
 	return format:pack(object_id, op_and_len, ...)
 end
 
@@ -191,9 +192,10 @@ local function create_caps_lock_watcher()
 
 	local function on_global(_, _, name, interface, version)
 		assert(type(name) == "number")
-		if DEBUG then print(name, interface, version) end
+		-- if DEBUG then print(name, interface, version) end
 		-- TODO: check version?
 		if interface ~= "wl_seat\0" then return "" end
+		if DEBUG then print("on_global:", name, interface, version) end
 		last_used_id = last_used_id + 1
 		return encode(wl_registry_id, wl_registry_bind, name, last_used_id)
 	end
