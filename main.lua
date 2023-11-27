@@ -164,19 +164,21 @@ end
 
 local function encode(object_id, op, ...)
 	local opcode, format  = table.unpack(op)
-	local op_and_len = format:packsize() << 16 | opcode
-	if DEBUG then print("encode:", opcode, format:packsize(), op_and_len, ...) end
-	return format:pack(object_id, op_and_len, ...)
+	local payload = format:pack(...)
+	local op_and_len = (#payload + 8) << 16 | opcode
+	if DEBUG then print("encode:", object_id, opcode, format, ...) end
+	-- TODO: optimize
+	return ("I4 I4"):pack(object_id, op_and_len) .. payload
 end
 
 local function create_caps_lock_watcher()
 	-- constants
 	local wl_display_id = 1
-	local wl_display_get_registry = {1, "I4 I4 I4"}
+	local wl_display_get_registry = {1, "I4"}
 	local wl_display_error = "!4 I4 I4 I4 I4 s4XI4"
 	local wl_registry_id = 2
 	local wl_registry_global = "!4 I4 I4 I4 s4XI4 I4"
-	local wl_registry_bind = {0, "I4 I4 I4 I4"}
+	local wl_registry_bind = {0, "I4 s4XI4 I4 I4"}
 
 	-- variables
 	local handlers = {}
@@ -197,7 +199,7 @@ local function create_caps_lock_watcher()
 		if interface ~= "wl_seat\0" then return "" end
 		if DEBUG then print("on_global:", name, interface, version) end
 		last_used_id = last_used_id + 1
-		return encode(wl_registry_id, wl_registry_bind, name, last_used_id)
+		return encode(wl_registry_id, wl_registry_bind, name, interface, version, last_used_id)
 	end
 
 	local function parse(bytes)
