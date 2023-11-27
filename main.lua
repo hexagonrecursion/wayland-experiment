@@ -6,14 +6,16 @@ local _ENV = setmetatable(
 )
 
 local M = require 'posix.sys.socket'
-local function DEBUG(...) end
-local function DEBUG(...) print(...) end
+
+local DEBUG = true
 
 -- Thanks https://stackoverflow.com/a/65477617/
 local function hex(str)
 	local result = str:gsub(".", function(char) return string.format("%02x", char:byte()) end):gsub("........", "%1 ")
 	return result
 end
+
+--[=====[ 
 
 local function mk_wl_clas(name, events)
 	local cls = {events = {}}
@@ -121,19 +123,6 @@ function Wayland:get_wl_display()
 	return self.object_by_id[1]
 end
 
-local function create_socket()
-	-- TODO: support WAYLAND_SOCKET 
-	-- TODO: support absolute paths in WAYLAND_SOCKET
-	-- TODO: what if XDG_RUNTIME_DIR is not set?
-	-- See https://wayland.freedesktop.org/docs/html/apb.html#Client-classwl__display_1af048371dfef7577bd39a3c04b78d0374 
-	
-	-- TODO: is this the best way of concatenating paths in lua?
-	local socket_path = os.getenv("XDG_RUNTIME_DIR") .. "/" .. os.getenv("WAYLAND_DISPLAY")
-	-- TODO: how to close the socket?
-	local socket = assert(M.socket(M.AF_UNIX, M.SOCK_STREAM, 0))
-	assert(M.connect(socket, {family = M.AF_UNIX, path = socket_path}))
-	return socket
-end
 
 local function ping_the_server()
 	local socket = create_socket()
@@ -142,21 +131,99 @@ local function ping_the_server()
 
 	local request, registry = display:get_registry()
 	local bytes = wayland:to_server({request})
-	DEBUG("C -> S", hex(bytes))
+	print("C -> S", hex(bytes))
 	assert(M.send(socket, bytes))
 	
 	while true do
 		-- TODO: decide buffer size
-		-- TODO: is wayland a steram protocol or datagram protocol?
 		bytes = assert(M.recv(socket, 2 << 16))
 		if not bytes or #bytes == 0 then
 			break -- end of file
 		end
-		DEBUG("S -> C", hex(bytes))
+		print("S -> C", hex(bytes))
 		for _, event in ipairs(wayland:from_server(bytes)) do
-			DEBUG("event", table.unpack(event))
+			print("event", table.unpack(event))
 		end
 	end
 end
 
-ping_the_server()
+--]=====]
+
+local function create_socket()
+	-- TODO: support WAYLAND_SOCKET 
+	-- TODO: support absolute paths in WAYLAND_SOCKET
+	-- TODO: what if XDG_RUNTIME_DIR is not set?
+	-- See https://wayland.freedesktop.org/docs/html/apb.html#Client-classwl__display_1af048371dfef7577bd39a3c04b78d0374 
+	
+	-- TODO: is this the best way of concatenating paths in lua?
+	local socket_path = os.getenv("XDG_RUNTIME_DIR") .. "/" .. os.getenv("WAYLAND_DISPLAY")
+	local socket = assert(M.socket(M.AF_UNIX, M.SOCK_STREAM, 0))
+	assert(M.connect(socket, {family = M.AF_UNIX, path = socket_path}))
+	return socket
+end
+
+local function encode(object_id, op, ...)
+	local opcode, format  = table.unpack(op)
+	local op_and_len = format:packsize() << 16 | opcode
+	return format:pack(object_id, op_and_len, ...)
+end
+
+local function create_caps_lock_watcher()
+	local handlers = {}
+	local caps_lock = {"maybe or maybe not"}
+	local buffer_from_server = ""
+
+	local function on_global(name, interface, version)
+		assert(type(name) == "number")
+		return ""
+	end
+
+	local function parse(from_server)
+		buffer_from_server = buffer_from_server .. from_server
+		local buffer_to_server = ""
+		while true do
+			if #buffer_from_server < ("I4I4"):packsize() then break end
+			local object_id, op_and_len = ("I4I4"):unpack(buffer_from_server)
+			local len = op_and_len >> 16
+			local opcode = op_and_len & ((1 << 16) - 1)
+			if #buffer_from_server < len then break end
+			local format, fn = table.unpack((handlers[object_id] or {})[opcode] or {})
+			if format then
+				-- TODO: string.unpack may throw or parse too many or too few bytes
+				buffer_to_server = buffer_to_server .. fn(format:unpack(buffer_from_server))
+			end
+			-- TODO: optimize
+			buffer_from_server = buffer_from_server:sub(len + 1)
+		end
+		return buffer_to_server, caps_lock
+	end
+
+	local wl_registry_id = 2
+	local wl_registry_global = "!4 I4 I4 I4 s4XI4 I4"
+	handlers[wl_registry_id] = {[0] = {wl_registry_global, on_global}}
+	local wl_display_id = 1
+	local wl_display_get_registry = {1, "I4 I4 I4"}
+	local to_server = encode(wl_display_id, wl_display_get_registry, wl_registry_id)
+	return to_server, parse
+end
+
+local function app()
+	-- TODO: how to close the socket?
+	local socket = assert(create_socket())
+	local to_server, parse = create_caps_lock_watcher()
+	local caps_lock
+	while true do
+		if DEBUG then print("C -> S", hex(to_server)) end
+		assert(M.send(socket, to_server))
+		-- TODO: decide buffer size
+		local from_server = assert(M.recv(socket, 2 << 16))
+		if #from_server == 0 then
+			break -- end of file
+		end
+		if DEBUG then print("S -> C", hex(from_server)) end
+		to_server, caps_lock = assert(parse(from_server))
+		print(table.unpack(caps_lock))
+	end
+end
+
+app()
